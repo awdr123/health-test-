@@ -153,6 +153,11 @@ export default function Home() {
     }
   }
 
+  function startOver() {
+    localStorage.removeItem("wellpath-user-id");
+    window.location.replace("/");
+  }
+
   if (loading && !userId) return <main className="loading-page"><Leaf aria-hidden="true" /><span>Preparing your assessment…</span></main>;
 
   return (
@@ -195,7 +200,7 @@ export default function Home() {
             </div>
           </div>
         </section>
-      ) : result ? <ResultView result={result} error={error} onUnlock={() => setShowPaywall(true)} /> : null}
+      ) : result ? <ResultView result={result} error={error} onUnlock={() => setShowPaywall(true)} onStartOver={startOver} /> : null}
       {showPaywall && (
         <PaymentModal
           selectedPlan={selectedPlan}
@@ -216,7 +221,7 @@ export default function Home() {
   );
 }
 
-function ResultView({ result, error, onUnlock }: { result: Result; error: string; onUnlock: () => void }) {
+function ResultView({ result, error, onUnlock, onStartOver }: { result: Result; error: string; onUnlock: () => void; onStartOver: () => void }) {
   return (
     <section className="result-shell">
       <div className="result-heading"><p className="eyebrow">Your starting point</p><h1>Your personal health snapshot</h1><p>Built from your answers and designed to give you a calm, practical next step.</p></div>
@@ -261,6 +266,7 @@ function ResultView({ result, error, onUnlock }: { result: Result; error: string
         </article>
       </div>
       <p className="medical-note">For general wellbeing only. Talk with a qualified clinician before making major changes to your diet or activity.</p>
+      <div className="start-over"><button type="button" onClick={onStartOver}>Start over</button></div>
     </section>
   );
 }
