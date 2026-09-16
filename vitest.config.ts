@@ -11,7 +11,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
-    env: { DATABASE_URL: "file:./test.db" },
+    env: { DATABASE_URL: "file:./test.db?connection_limit=1" },
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],

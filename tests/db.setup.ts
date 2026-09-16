@@ -23,7 +23,7 @@ beforeAll(async () => {
       cwd: workspace,
       env: {
         ...process.env,
-        DATABASE_URL: "file:./test.db",
+        DATABASE_URL: "file:./test.db?connection_limit=1",
         RUST_BACKTRACE: "1",
         RUST_LOG: "info"
       },
