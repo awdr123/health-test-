@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ArrowLeft, ArrowRight, Check, Leaf, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Leaf, LockKeyhole, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type Answers = {
@@ -30,14 +30,29 @@ type Result = {
 };
 
 const steps = [
-  { key: "gender", title: "How do you describe yourself?", hint: "This helps us estimate your baseline energy needs.", type: "choice", options: [["female", "Female"], ["male", "Male"], ["nonbinary", "Non-binary"]] },
-  { key: "goal", title: "What would you like to achieve?", hint: "Choose the goal that feels most useful right now.", type: "choice", options: [["lose", "Lose weight"], ["maintain", "Maintain weight"], ["gain", "Gain weight"]] },
-  { key: "age", title: "How old are you?", hint: "We support adults from 16 to 100 years old.", type: "number", unit: "years", min: 16, max: 100 },
-  { key: "heightCm", title: "What is your height?", hint: "A close estimate is fine. You can update it later.", type: "number", unit: "cm", min: 120, max: 230 },
-  { key: "weightKg", title: "What is your current weight?", hint: "Your answers stay private and are used only for this plan.", type: "number", unit: "kg", min: 35, max: 300 },
-  { key: "targetWeightKg", title: "What is your target weight?", hint: "Choose a realistic first milestone within 50 kg of your current weight.", type: "number", unit: "kg", min: 30, max: 250 },
-  { key: "activity", title: "How active is a typical week?", hint: "Think about deliberate movement as well as day-to-day activity.", type: "choice", options: [["low", "Mostly seated"], ["light", "Lightly active"], ["moderate", "Active 3–4 days"], ["high", "Very active"]] }
+  { key: "gender", title: "How do you describe yourself?", hint: "A few quick answers help us personalize your starting point with greater care.", type: "choice", options: [["female", "Female"], ["male", "Male"], ["nonbinary", "Non-binary"]] },
+  { key: "goal", title: "What would you like to achieve?", hint: "Choose your focus and we will shape every next step around it.", type: "choice", options: [["lose", "Lose weight"], ["maintain", "Maintain weight"], ["gain", "Gain weight"]] },
+  { key: "activity", title: "How active is a typical week?", hint: "Think about movement across work, errands, exercise, and the rest of daily life.", type: "choice", options: [["low", "Mostly seated"], ["light", "Lightly active"], ["moderate", "Active 3–4 days"], ["high", "Very active"]] },
+  { key: "age", title: "How old are you?", hint: "This takes only a moment and makes your daily energy estimate more useful.", type: "number", unit: "years", min: 16, max: 100 },
+  { key: "heightCm", title: "What is your height?", hint: "A close estimate works well, and you can always update it later.", type: "number", unit: "cm", min: 120, max: 230 },
+  { key: "weightKg", title: "What is your current weight?", hint: "Your answer stays private and helps us calibrate your personal starting point.", type: "number", unit: "kg", min: 35, max: 300 },
+  { key: "targetWeightKg", title: "What is your target weight?", hint: "Choose a realistic first milestone that feels both achievable and motivating.", type: "number", unit: "kg", min: 30, max: 250 }
 ] as const;
+
+type PlanId = "month" | "quarter" | "year";
+
+const plans: Array<{ id: PlanId; name: string; price: number; originalPrice: number; daily: string; popular?: boolean }> = [
+  { id: "month", name: "1 Month", price: 29, originalPrice: 59, daily: "¥0.96/day" },
+  { id: "quarter", name: "3 Months", price: 69, originalPrice: 149, daily: "¥0.76/day", popular: true },
+  { id: "year", name: "12 Months", price: 199, originalPrice: 499, daily: "¥0.55/day" }
+];
+
+const previewProjection = [
+  { week: 1, weight: 72.4 },
+  { week: 2, weight: 71.8 },
+  { week: 3, weight: 71.1 },
+  { week: 4, weight: 70.5 }
+];
 
 function getUserId() {
   const key = "wellpath-user-id";
@@ -56,6 +71,9 @@ export default function Home() {
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanId>("quarter");
+  const [paymentState, setPaymentState] = useState<"idle" | "paying" | "ready">("idle");
 
   useEffect(() => {
     const id = getUserId();
@@ -118,17 +136,20 @@ export default function Home() {
     setError("");
   }
 
-  async function unlock() {
-    setLoading(true);
+  async function unlock(plan: PlanId) {
+    setPaymentState("paying");
     setError("");
     try {
-      const response = await fetch("/api/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, sessionId: `demo_${crypto.randomUUID()}` }) });
+      const response = await fetch("/api/pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, sessionId: `${plan}_${crypto.randomUUID()}` }) });
       if (!response.ok) throw new Error("pay");
+      setShowPaywall(false);
+      setPaymentState("ready");
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       await loadResult();
     } catch {
       setError("Payment simulation failed. Please try again.");
     } finally {
-      setLoading(false);
+      setPaymentState("idle");
     }
   }
 
@@ -147,7 +168,7 @@ export default function Home() {
             <div className="visual-caption"><Sparkles size={18} /><span>Small, sustainable choices<br /><strong>made for your life.</strong></span></div>
           </div>
           <div className="quiz-panel">
-            <div className="progress-meta"><span>Personal assessment</span><strong>{step + 1} of {steps.length}</strong></div>
+            <div className="progress-meta"><strong>Step {step + 1} / {steps.length}</strong><span>{Math.round(((step + 1) / steps.length) * 100)}% complete</span></div>
             <div className="progress-track"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
             <div className="question" key={current.key}>
               <p className="eyebrow">A little about you</p>
@@ -174,17 +195,45 @@ export default function Home() {
             </div>
           </div>
         </section>
-      ) : result ? <ResultView result={result} loading={loading} error={error} onUnlock={unlock} /> : null}
+      ) : result ? <ResultView result={result} error={error} onUnlock={() => setShowPaywall(true)} /> : null}
+      {showPaywall && (
+        <PaymentModal
+          selectedPlan={selectedPlan}
+          paying={paymentState === "paying"}
+          onSelect={setSelectedPlan}
+          onClose={() => setShowPaywall(false)}
+          onConfirm={() => unlock(selectedPlan)}
+        />
+      )}
+      {paymentState === "ready" && (
+        <div className="plan-ready" role="status" aria-live="polite">
+          <CheckCircle2 size={48} aria-hidden="true" />
+          <h2>Your plan is ready</h2>
+          <p>Opening your complete personalized plan now.</p>
+        </div>
+      )}
     </main>
   );
 }
 
-function ResultView({ result, loading, error, onUnlock }: { result: Result; loading: boolean; error: string; onUnlock: () => void }) {
+function ResultView({ result, error, onUnlock }: { result: Result; error: string; onUnlock: () => void }) {
   return (
     <section className="result-shell">
       <div className="result-heading"><p className="eyebrow">Your starting point</p><h1>Your personal health snapshot</h1><p>Built from your answers and designed to give you a calm, practical next step.</p></div>
+      <div className="trust-strip"><ShieldCheck size={17} aria-hidden="true" /><span>Reviewed by fitness coaches · Based on Mifflin-St Jeor equation · For educational purposes, not medical advice</span></div>
       <div className="result-grid">
-        <article className="bmi-card"><span>BMI estimate</span><strong>{result.bmi}</strong><p>{result.bmiLabel}</p><small>BMI is a screening measure, not a diagnosis.</small></article>
+        <div className="result-summary">
+          <article className="bmi-card"><span>BMI estimate</span><strong>{result.bmi}</strong><p>{result.bmiLabel}</p><small>BMI is a screening measure, not a diagnosis.</small></article>
+          <section className="profile-card" aria-label="Your health profile">
+            <h2>Your profile</h2>
+            <dl>
+              <div><dt>Body type</dt><dd>{result.bodyType ?? "Not available"}</dd></div>
+              <div><dt>Lifestyle</dt><dd>{result.lifestyle ?? "Not available"}</dd></div>
+              <div><dt>Activity level</dt><dd>{result.activityLevel ?? "Not available"}</dd></div>
+              <div><dt>Metabolism</dt><dd>{result.metabolism ?? "Not available"}</dd></div>
+            </dl>
+          </section>
+        </div>
         <article className="plan-card">
           <div className="plan-title"><div><span>{result.isMember ? "Your plan" : "Complete your plan"}</span><h2>{result.isMember ? "A clear path forward" : "Unlock your tailored targets"}</h2></div>{!result.isMember && <LockKeyhole />}</div>
           {result.isMember ? (
@@ -195,10 +244,17 @@ function ResultView({ result, loading, error, onUnlock }: { result: Result; load
             </>
           ) : (
             <>
-              <div className="locked-preview"><div><span>Daily energy guide</span><strong>•••• kcal</strong></div><div><span>Target milestone</span><strong>•• ••• 2026</strong></div></div>
-              <p className="unlock-copy">See your calorie guide, target date and a focused three-part action plan.</p>
-              <button className="primary wide" onClick={onUnlock} disabled={loading}><LockKeyhole size={17} />Unlock plan — $9.00</button>
-              <small className="demo-note">Secure demo checkout · one-time payment simulation</small>
+              <div className="locked-preview"><div><span>Daily energy guide</span><strong>Unlock to see your daily target</strong></div><div><span>12-week milestone</span><strong>Your personalized date</strong></div></div>
+              <div className="blurred-preview">
+                <div className="blurred-preview-content" aria-hidden="true">
+                  <ProjectionChart points={previewProjection} />
+                  <ul><li><Check size={17} />A personalized nutrition action</li><li><Check size={17} />A weekly movement target</li><li><Check size={17} />A practical recovery habit</li></ul>
+                </div>
+                <div className="preview-overlay"><LockKeyhole size={22} /><strong>Your projection and weekly plan are ready</strong></div>
+              </div>
+              <p className="unlock-copy">See your calorie target, projected progress, and the actions designed around your answers.</p>
+              <button className="primary wide unlock-button" onClick={onUnlock}><LockKeyhole size={17} />Unlock your 12-week personalized plan</button>
+              <small className="demo-note">Secure simulated checkout · choose the plan that suits you</small>
             </>
           )}
           {error && <p className="error" role="alert">{error}</p>}
@@ -206,6 +262,50 @@ function ResultView({ result, loading, error, onUnlock }: { result: Result; load
       </div>
       <p className="medical-note">For general wellbeing only. Talk with a qualified clinician before making major changes to your diet or activity.</p>
     </section>
+  );
+}
+
+function PaymentModal({ selectedPlan, paying, onSelect, onClose, onConfirm }: { selectedPlan: PlanId; paying: boolean; onSelect: (plan: PlanId) => void; onClose: () => void; onConfirm: () => void }) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !paying) onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    document.body.classList.add("modal-open");
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.body.classList.remove("modal-open");
+    };
+  }, [onClose, paying]);
+
+  const chosen = plans.find((plan) => plan.id === selectedPlan) ?? plans[1];
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !paying && onClose()}>
+      <section className="payment-modal" role="dialog" aria-modal="true" aria-labelledby="payment-title">
+        <button className="modal-close" onClick={onClose} disabled={paying} aria-label="Close payment options"><X size={21} /></button>
+        <div className="modal-heading"><p className="eyebrow">Choose your access</p><h2 id="payment-title">Start your personalized plan</h2><p>Pick the pace that fits your goals. Your full plan unlocks immediately.</p></div>
+        <div className="pricing-grid" role="radiogroup" aria-label="Membership duration">
+          {plans.map((plan) => (
+            <button key={plan.id} type="button" role="radio" aria-checked={selectedPlan === plan.id} className={selectedPlan === plan.id ? "price-option selected" : "price-option"} onClick={() => onSelect(plan.id)}>
+              {plan.popular && <span className="popular-label">MOST POPULAR</span>}
+              <span className="plan-duration">{plan.name}</span>
+              <span className="price-line"><s>¥{plan.originalPrice}</s><strong>¥{plan.price}</strong></span>
+              <span className="daily-price">{plan.daily}</span>
+              <span className="radio-mark" aria-hidden="true">{selectedPlan === plan.id && <Check size={15} />}</span>
+            </button>
+          ))}
+        </div>
+        <ul className="benefits">
+          <li><Check size={17} />Personalized daily calorie target</li>
+          <li><Check size={17} />4-week weight projection</li>
+          <li><Check size={17} />Weekly plan updates</li>
+          <li><Check size={17} />Cancel anytime</li>
+        </ul>
+        <button className="primary wide modal-cta" onClick={onConfirm} disabled={paying}>{paying ? "Preparing your plan…" : `Unlock ${chosen.name} for ¥${chosen.price}`}</button>
+        <p className="payment-terms">Prices in CNY. Auto-renews, cancel anytime. Not a medical service.</p>
+      </section>
+    </div>
   );
 }
 
